@@ -28,6 +28,12 @@ class AlexaHttp2Push extends EventEmitter {
     connect() {
         this.inClosing = false;
         this.update_access_token(token => {
+            if (this.stop) {
+                // The push was disconnected while the token request was in
+                // flight (e.g. a re-init called disconnect()). Do not open a
+                // connection that nothing is listening to anymore.
+                return;
+            }
             this.access_token = token;
 
             let host = 'bob-dispatch-prod-eu.amazon.com';
@@ -145,7 +151,9 @@ class AlexaHttp2Push extends EventEmitter {
                         this.stream = this.client.request(http2Options);
                     } catch (error) {
                         this._options.logger && this._options.logger(`Alexa-Remote HTTP2-PUSH: Error on Request ${error.message}`);
-                        this.emit('error', error);
+                        if (this.listenerCount('error')) {
+                            this.emit('error', error);
+                        }
                         return;
                     }
 
@@ -232,7 +240,9 @@ class AlexaHttp2Push extends EventEmitter {
 
                     this.stream.on('error', (error) => {
                         this._options.logger && this._options.logger(`Alexa-Remote HTTP2-PUSH: Stream-Error: ${error}`);
-                        this.emit('error', error);
+                        if (this.listenerCount('error')) {
+                            this.emit('error', error);
+                        }
                         this.stream && this.stream.end();
                         this.client && this.client.close();
                     });
@@ -242,7 +252,9 @@ class AlexaHttp2Push extends EventEmitter {
 
                 this.client.on('error', (error) => {
                     this._options.logger && this._options.logger(`Alexa-Remote HTTP2-PUSH: Client-Error: ${error}`);
-                    this.emit('error', error);
+                    if (this.listenerCount('error')) {
+                        this.emit('error', error);
+                    }
                     this.stream && this.stream.end();
                     this.client && this.client.close();
                 });
@@ -264,7 +276,9 @@ class AlexaHttp2Push extends EventEmitter {
             catch (err) {
                 this._options.logger && this._options.logger(`Alexa-Remote HTTP2-PUSH: Error on Init ${err.message}`);
                 this._options.logger && this._options.logger(err.stack);
-                this.emit('error', err);
+                if (this.listenerCount('error')) {
+                    this.emit('error', err);
+                }
                 return;
             }
             this.initTimeout && clearTimeout(this.initTimeout);
